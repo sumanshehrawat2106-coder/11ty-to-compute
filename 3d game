@@ -1,0 +1,134 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>3D Fighter Game</title>
+  <meta name="viewport" content="width=device-width,initial-scale=1.0" />
+  <style>
+    body { margin:0; overflow:hidden; background:#000; }
+    #ui {
+      position:absolute; top:10px; width:100%; text-align:center;
+      color:white; font-family:Arial,sans-serif; z-index:10;
+    }
+    .bar {
+      display:inline-block; width:40%; height:20px;
+      background:red; border-radius:10px; overflow:hidden; margin:0 10px;
+    }
+    .inner { background:lime; height:100%; width:100%; transition:width 0.3s; }
+  </style>
+</head>
+<body>
+  <div id="ui">
+    Player 1 <div id="hb1" class="bar"><div class="inner"></div></div>
+    Player 2 <div id="hb2" class="bar"><div class="inner"></div></div>
+  </div>
+
+  <script type="module">
+    import * as THREE from "https://cdn.jsdelivr.net/npm/three@0.159.0/build/three.module.js";
+    import { GLTFLoader } from "https://cdn.jsdelivr.net/npm/three@0.159.0/examples/jsm/loaders/GLTFLoader.js";
+    import { OrbitControls } from "https://cdn.jsdelivr.net/npm/three@0.159.0/examples/jsm/controls/OrbitControls.js";
+
+    let scene, camera, renderer, fighter1, fighter2, mixer1, mixer2;
+    const clock = new THREE.Clock();
+    let health1 = 1, health2 = 1;
+    const hitDamage = 0.15;
+
+    init();
+    animate();
+
+    function init() {
+      scene = new THREE.Scene();
+      scene.background = new THREE.Color(0x111111);
+
+      camera = new THREE.PerspectiveCamera(60, innerWidth/innerHeight, 0.1, 100);
+      camera.position.set(0, 3, 10);
+
+      renderer = new THREE.WebGLRenderer({ antialias:true });
+      renderer.setSize(innerWidth, innerHeight);
+      document.body.appendChild(renderer.domElement);
+
+      const hemi = new THREE.HemisphereLight(0xffffff, 0x333333, 1.5);
+      scene.add(hemi);
+      const dir = new THREE.DirectionalLight(0xffffff, 1);
+      dir.position.set(3,6,5);
+      scene.add(dir);
+
+      const floor = new THREE.Mesh(
+        new THREE.PlaneGeometry(40,40),
+        new THREE.MeshStandardMaterial({ color:0x444444, roughness:0.8 })
+      );
+      floor.rotation.x = -Math.PI/2;
+      scene.add(floor);
+
+      const controls = new OrbitControls(camera, renderer.domElement);
+      controls.target.set(0,2,0);
+      controls.update();
+
+      const loader = new GLTFLoader();
+      const model1 = "https://rawcdn.githack.com/KhronosGroup/glTF-Sample-Models/master/2.0/Soldier/glTF-Binary/Soldier.glb";
+      const model2 = "https://rawcdn.githack.com/KhronosGroup/glTF-Sample-Models/master/2.0/Soldier/glTF-Binary/Soldier.glb";
+
+      loader.load(model1, gltf => {
+        fighter1 = gltf.scene;
+        fighter1.position.set(-2,0,0);
+        fighter1.scale.set(1.6,1.6,1.6);
+        scene.add(fighter1);
+        mixer1 = new THREE.AnimationMixer(fighter1);
+        gltf.animations.forEach(a => mixer1.clipAction(a).play());
+      });
+
+      loader.load(model2, gltf => {
+        fighter2 = gltf.scene;
+        fighter2.position.set(2,0,0);
+        fighter2.scale.set(1.6,1.6,1.6);
+        fighter2.rotation.y = Math.PI;
+        scene.add(fighter2);
+        mixer2 = new THREE.AnimationMixer(fighter2);
+        gltf.animations.forEach(a => mixer2.clipAction(a).play());
+      });
+
+      addEventListener("resize",()=> {
+        camera.aspect = innerWidth/innerHeight;
+        camera.updateProjectionMatrix();
+        renderer.setSize(innerWidth, innerHeight);
+      });
+
+      addEventListener("keydown",e=>{
+        if(!fighter1||!fighter2)return;
+        if(e.code==="KeyA"){ doHit(fighter1,fighter2,2); }
+        if(e.code==="ArrowLeft"){ doHit(fighter2,fighter1,1); }
+      });
+    }
+
+    function doHit(attacker, target, targetNum) {
+      const dist = attacker.position.distanceTo(target.position);
+      if (dist < 4) {
+        if (targetNum === 1) health1 -= hitDamage;
+        else health2 -= hitDamage;
+        updateBars();
+        if (health1 <= 0 || health2 <= 0) {
+          const winner = health1 <= 0 ? "Player 2" : "Player 1";
+          setTimeout(()=>alert(winner + " wins!"), 100);
+          health1 = health2 = 1;
+          updateBars();
+        }
+      }
+      // small push effect
+      target.position.x += targetNum===1 ? -0.3 : 0.3;
+    }
+
+    function updateBars() {
+      document.querySelector("#hb1 .inner").style.width = (health1*100)+"%";
+      document.querySelector("#hb2 .inner").style.width = (health2*100)+"%";
+    }
+
+    function animate() {
+      requestAnimationFrame(animate);
+      const delta = clock.getDelta();
+      if (mixer1) mixer1.update(delta);
+      if (mixer2) mixer2.update(delta);
+      renderer.render(scene, camera);
+    }
+  </script>
+</body>
+</html>
